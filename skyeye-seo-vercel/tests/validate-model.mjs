@@ -1,0 +1,30 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import ts from 'typescript';
+for(const name of ['workspace-model','workspace-tools']){
+ const source=await fs.readFile(`lib/${name}.ts`,'utf8');
+ const output=ts.transpileModule(source,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText.replace('"./workspace-model"','"./workspace-model.mjs"');
+ await fs.mkdir('.validation',{recursive:true});
+ await fs.writeFile(`.validation/${name}.mjs`,output);
+}
+const model=await import('../.validation/workspace-model.mjs');
+const {registerWorkspaceTools}=await import('../.validation/workspace-tools.mjs');
+const data=model.seedMonth('2026-10');
+assert.equal(data.items.filter(x=>x.channel==='blog').length,30);
+assert.equal(data.items.length,68);
+assert.equal(model.summarize(data.items,'2026-10-02').done,20);
+assert.equal(model.filterItems(data.items,'blog','Published','').length,6);
+assert.equal(model.filterItems(data.items,'blog','All','CCTV').length,2);
+assert.equal(model.filterItems(data.items,'blog','All','','High').length,6);
+assert.equal(model.filterItems(data.items,'blog','All','','All','Overdue','2026-10-20').length,13);
+assert.ok(model.filterItems(data.items,'all','All','','All','This week','2026-10-02').every(x=>x.due>='2026-10-02'&&x.due<='2026-10-08'&&!model.isDone(x)));
+for(const month of ['2026-10','2027-02','2028-02','2026-11'])assert.ok(model.stateSchema.safeParse(model.seedMonth(month)).success,`${month}: valid monthly template`);
+const bad=structuredClone(data);bad.items[0].due='2026-02-31';assert.equal(model.stateSchema.safeParse(bad).success,false);
+bad.items[0].due='2026-11-01';assert.equal(model.stateSchema.safeParse(bad).success,false);
+const invalidRank=structuredClone(data.items.find(x=>x.channel==='ranks'));invalidRank.currentRank=101;assert.equal(model.itemSchema.safeParse(invalidRank).success,false);
+const invalidStatus=structuredClone(data.items[0]);invalidStatus.status='Verified';assert.equal(model.itemSchema.safeParse(invalidStatus).success,false);
+let view='',opened='';const registry=[];const cleanup=registerWorkspaceTools({getState:()=>({...data,version:1,updatedAt:'2026-10-02'}),navigate:v=>view=v,openItem:id=>opened=id},{registerTool:(tool,options)=>registry.push({tool,options})});
+assert.deepEqual(registry.map(x=>x.tool.name),['read_monthly_workspace','navigate_seo_workstream','open_planning_item']);
+assert.equal(registry[0].tool.execute({}).items.length,68);registry[1].tool.execute({view:'blog'});assert.equal(view,'blog');assert.throws(()=>registry[1].tool.execute({view:'unknown'}));assert.equal(view,'blog');
+registry[2].tool.execute({id:data.items[0].id});assert.equal(opened,data.items[0].id);assert.throws(()=>registry[2].tool.execute({id:'missing'}));assert.equal(opened,data.items[0].id);cleanup();assert.ok(registry.every(x=>x.options.signal.aborted));
+console.log('PASS: 30-post plan, all month templates, status/search/priority/deadline filters, progress, validation, tool action contracts.');

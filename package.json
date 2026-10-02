@@ -1,0 +1,16 @@
+{
+  "name": "SkyEye-SEO-Vercel",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "dev": "pnpm --dir skyeye-seo-vercel run dev",
+    "build": "pnpm --dir skyeye-seo-vercel run build",
+    "start": "pnpm --dir skyeye-seo-vercel run start",
+    "typecheck": "pnpm --dir skyeye-seo-vercel run typecheck",
+    "test": "pnpm --dir skyeye-seo-vercel run test"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}
